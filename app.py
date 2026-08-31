@@ -84,7 +84,7 @@ def index():
         lang = request.form.get("lang", "pa-IN")
         
         # 1. ਸਕ੍ਰਿਪਟ ਬਣਾਓ
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-pro")
         prompt = f"Write a very short 15-second viral video script about '{topic}' in {lang}. Output only the spoken script text, no brackets or scene titles."
         response = model.generate_content(prompt)
         script_text = response.text.strip()
