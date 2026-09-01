@@ -1,8 +1,7 @@
-import os 
+import os
 import requests
-import asyncio
-import edge_tts
 from flask import Flask, request, render_template_string
+from gtts import gTTS
 import google.generativeai as genai
 from moviepy.editor import VideoFileClip, AudioFileClip
 
@@ -12,7 +11,10 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY")
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception:
+        pass
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -37,12 +39,12 @@ HTML_TEMPLATE = """
         <h1>🎬 AI Video Generator</h1>
         <form method="POST">
             <label>ਵੀਡੀਓ ਦਾ ਟੌਪਿਕ ਲਿਖੋ:</label>
-            <input type="text" name="topic" placeholder="e.g. 3 Morning Habits" required>
+            <input type="text" name="topic" placeholder="e.g. Morning Motivation" required>
             <label>ਭਾਸ਼ਾ (Voice Language):</label>
             <select name="lang">
-                <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
-                <option value="hi-IN">हिंदी (Hindi)</option>
-                <option value="en-US">English</option>
+                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="en">English</option>
             </select>
             <button type="submit">ਵੀਡੀਓ ਤਿਆਰ ਕਰੋ 🚀</button>
         </form>
@@ -61,62 +63,54 @@ HTML_TEMPLATE = """
 </html>
 """
 
-async def create_voice(text, filename, lang="pa-IN"):
-    voice = "pa-IN-OjasNeural" if lang == "pa-IN" else ("hi-IN-SwaraNeural" if lang == "hi-IN" else "en-US-ChristopherNeural")
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(filename)
+def create_voice(text, filename, lang="pa"):
+    tts = gTTS(text=text, lang=lang, slow=False)
+    tts.save(filename)
 
 def get_pexels_video(query):
-    if not PEXELS_API_KEY:
-        return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    url = f"https://api.pexels.com/videos/search?query={query}&per_page=1&orientation=portrait"
-    headers = {"Authorization": PEXELS_API_KEY}
-    try:
-        r = requests.get(url, headers=headers).json()
-        if "videos" in r and len(r["videos"]) > 0:
-            return r["videos"][0]["video_files"][0]["link"]
-    except Exception:
-        pass
+    if PEXELS_API_KEY:
+        try:
+            url = f"https://api.pexels.com/videos/search?query={query}&per_page=1&orientation=portrait"
+            headers = {"Authorization": PEXELS_API_KEY}
+            r = requests.get(url, headers=headers, timeout=10).json()
+            if "videos" in r and len(r["videos"]) > 0:
+                return r["videos"][0]["video_files"][0]["link"]
+        except Exception:
+            pass
     return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        topic = request.form.get("topic")
-        lang = request.form.get("lang", "pa-IN")
+        topic = request.form.get("topic", "Motivation")
+        lang = request.form.get("lang", "pa")
         
-        script_text = f"Top facts about {topic}. Follow for more daily updates!"
+        script_text = f"Top facts about {topic}. Work hard and stay focused on your goals every day."
         if GEMINI_API_KEY:
             try:
                 model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
-                prompt = f"Write a 15-second viral video script about '{topic}' in {lang}. Output only the spoken script text."
-                response = model.generate_content(prompt)
-                if response and response.text:
-                    script_text = response.text.strip()
+                prompt = f"Write a short, engaging 15-word video script about '{topic}' in language code '{lang}'. Do not use formatting or asterisks, only spoken plain text."
+                res = model.generate_content(prompt)
+                if res and res.text:
+                    script_text = res.text.strip().replace("*", "")
             except Exception:
-                try:
-                    model = genai.GenerativeModel("models/gemini-pro")
-                    response = model.generate_content(prompt)
-                    if response and response.text:
-                        script_text = response.text.strip()
-                except Exception:
-                    pass
+                pass
         
         audio_file = "voice.mp3"
-        asyncio.run(create_voice(script_text, audio_file, lang))
+        create_voice(script_text, audio_file, lang)
         
         video_url = get_pexels_video(topic)
-        r = requests.get(video_url)
+        r = requests.get(video_url, timeout=15)
         with open("clip.mp4", "wb") as f:
             f.write(r.content)
             
         audio_clip = AudioFileClip(audio_file)
-        video_clip = VideoFileClip("clip.mp4").subclip(0, min(15, max(5, audio_clip.duration)))
+        video_clip = VideoFileClip("clip.mp4").subclip(0, min(10, max(3, audio_clip.duration)))
         video_clip = video_clip.set_audio(audio_clip)
         
         os.makedirs("static", exist_ok=True)
         final_file = "static/final_video.mp4"
-        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", fps=24)
+        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", fps=24, verbose=False, logger=None)
         
         return render_template_string(HTML_TEMPLATE, video_url="/static/final_video.mp4", script_text=script_text)
 
