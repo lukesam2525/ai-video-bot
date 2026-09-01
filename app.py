@@ -3,7 +3,7 @@ import requests
 from flask import Flask, request, render_template_string
 from gtts import gTTS
 import google.generativeai as genai
-from moviepy.editor import VideoFileClip, AudioFileClip
+from moviepy import VideoFileClip, AudioFileClip
 
 app = Flask(__name__)
 
@@ -105,12 +105,13 @@ def index():
             f.write(r.content)
             
         audio_clip = AudioFileClip(audio_file)
-        video_clip = VideoFileClip("clip.mp4").subclip(0, min(10, max(3, audio_clip.duration)))
-        video_clip = video_clip.set_audio(audio_clip)
+        target_duration = min(10, max(3, audio_clip.duration))
+        video_clip = VideoFileClip("clip.mp4").subclipped(0, target_duration)
+        video_clip = video_clip.with_audio(audio_clip)
         
         os.makedirs("static", exist_ok=True)
         final_file = "static/final_video.mp4"
-        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", fps=24, verbose=False, logger=None)
+        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", fps=24, logger=None)
         
         return render_template_string(HTML_TEMPLATE, video_url="/static/final_video.mp4", script_text=script_text)
 
@@ -118,3 +119,5 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
+            
