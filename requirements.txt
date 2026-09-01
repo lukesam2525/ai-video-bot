@@ -3,6 +3,7 @@ gunicorn
 google-generativeai
 requests
 gTTS
-moviepy==1.0.3
-pillow<10.0.0
+moviepy>=2.0.0
+Pillow
+
 
