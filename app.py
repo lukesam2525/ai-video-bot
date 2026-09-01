@@ -105,8 +105,11 @@ def index():
             f.write(r.content)
             
         audio_clip = AudioFileClip(audio_file)
-        target_duration = min(10, max(3, audio_clip.duration))
-        video_clip = VideoFileClip("clip.mp4").subclipped(0, target_duration)
+        raw_video = VideoFileClip("clip.mp4")
+        
+        duration = min(raw_video.duration, audio_clip.duration)
+        video_clip = raw_video.subclipped(0, duration)
+        audio_clip = audio_clip.subclipped(0, duration)
         video_clip = video_clip.with_audio(audio_clip)
         
         os.makedirs("static", exist_ok=True)
@@ -120,4 +123,4 @@ def index():
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
 
-            
+
