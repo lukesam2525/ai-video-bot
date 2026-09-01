@@ -114,7 +114,8 @@ def index():
         
         os.makedirs("static", exist_ok=True)
         final_file = "static/final_video.mp4"
-        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", fps=24, logger=None)
+        video_clip.write_videofile(final_file, codec="libx264", audio_codec="aac", preset="ultrafast", threads=2, fps=20, logger=None)
+
         
         return render_template_string(HTML_TEMPLATE, video_url="/static/final_video.mp4", script_text=script_text)
 
